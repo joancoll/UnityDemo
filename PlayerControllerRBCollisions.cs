@@ -11,12 +11,14 @@ public class PlayerControllerRBCollisions : MonoBehaviour
     public float enemyBounceForceUp = 5.0f;
     public float bounceForceUp = 10.0f;
     public float bounceForceForward = 10.0f;
+    private const float DEATHPOS = -2f; //posició mínima per morir
     private Rigidbody rb;
     private Vector3 playerInput, movement;
     private float xMovement, zMovement;
     private bool isGrounded = false; //for collision use
     private bool playJump = false;
     private Vector3 collisionDirection;
+
 
     // Start is called before the first frame update
     void Start()
@@ -29,7 +31,7 @@ public class PlayerControllerRBCollisions : MonoBehaviour
     {
         MoveControl();
         JumpControl();
-        LiveControl();
+        LifeControl();
     }
 
     void FixedUpdate()
@@ -64,9 +66,9 @@ public class PlayerControllerRBCollisions : MonoBehaviour
         }
     }
 
-    void LiveControl()
+    void LifeControl()
     {
-        if (transform.position.y < -10)
+        if (transform.position.y < DEATHPOS)
         {
             Debug.Log("Game Over");
             // Canvi d'escena
