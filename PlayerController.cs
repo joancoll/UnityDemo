@@ -5,165 +5,197 @@ using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
 {
-    // declare reference variables
-    CharacterController characterController;
-    Animator animator;
-    PlayerInput playerInput; // NOTE: PlayerInput class must be generated from New Input System in Inspector 
+    private CharacterController characterController;
+    private Animator animator;
+    private PlayerInput playerInput;
 
-    // variables to store optimized setter/getter parameter IDs
-    int isWalkingHash;
-    int isRunningHash;
+    private bool isJumping = false;
+    private bool isJumpAnimating = false;
+    private float gravity;
 
-    // variables to store player input values
-    Vector2 currentMovementInput;
-    Vector3 currentMovement;
-    Vector3 currentRunMovement;
-    Vector3 appliedMovement;
-    bool isMovementPressed;
-    bool isRunPressed;
+    private Vector2 currentMovementInput;
+    private Vector3 currentMovement;
+    private Vector3 currentRunMovement, appliedMovement, positionToLookAt;
+    private bool isMovementPressed = false;
+    private bool isRunPressed = false;
+    private bool isJumpPressed = false;
+    private float initialJumpVelocity;
 
-    // constants
-    float rotationFactorPerFrame = 15.0f;
-    float runMultiplier = 4.0f;
-    int zero = 0;
+    private enum AnimationState
+    { // Han de coincidir amb els noms dels booleans que controlen les animacions de l'animator
+        Idle,
+        Walk,
+        Run,
+        Jump,
+        Dead
+    }
+    private AnimationState currentAnimationState = AnimationState.Idle;
 
-    //gravity variables
-    float gravity = -9.8f;
-    float groundedGravity = -.05f;
+    [Header("Paràmetres de Moviment")]
+    [SerializeField] private float rotationFactorPerFrame = 15.0f; // Factor de rotació per fotograma
+    [SerializeField] private float runMultiplier = 4.0f; // Multiplicador de velocitat de córrer
 
-    // Awake is called earlier than Start in Unity's event life cycle
-    void Awake() 
+    [Header("Paràmetres de Salt")]
+    [SerializeField] private float maxJumpHeight = 2.0f; // Altura màxima de salt
+    [SerializeField] private float maxJumpTime = 0.75f; // Temps màxim de salt
+    [SerializeField] private float groundedGravity = -0.05f; // Atracció negativa per simular petita gravetat quan està a terra
+
+    void Awake()
     {
-        // initially set reference variables
         playerInput = new PlayerInput();
         characterController = GetComponent<CharacterController>();
         animator = GetComponent<Animator>();
 
-        // set the parameter hash references
-        isWalkingHash = Animator.StringToHash("isWalking");
-        isRunningHash = Animator.StringToHash("isRunning");
+        // Configura els callbacks per als controls d'entrada del jugador
+        playerInput.CharacterControl.Move.started += OnMovementInput;
+        playerInput.CharacterControl.Move.canceled += OnMovementInput;
+        playerInput.CharacterControl.Move.performed += OnMovementInput;
+        playerInput.CharacterControl.Run.started += OnRun;
+        playerInput.CharacterControl.Run.canceled += OnRun;
+        playerInput.CharacterControl.Jump.started += OnJump;
+        playerInput.CharacterControl.Jump.canceled += OnJump;
 
-        // set the player input callbacks
-        playerInput.CharacterControl.Move.started += onMovementInput;
-        playerInput.CharacterControl.Move.canceled += onMovementInput;
-        playerInput.CharacterControl.Move.performed += onMovementInput;
-        playerInput.CharacterControl.Run.started += onRun;
-        playerInput.CharacterControl.Run.canceled += onRun;
+        SetupJumpVariables(); // Inicialitza les variables de salt
     }
 
+    void SetupJumpVariables()
+    {
+        // Calcula les variables de salt en base als paràmetres definits
+        // La força de llançament per poder fer el salt en el temps especificat
+        // gravity indica la gravetat aplicada al personatge quan salta cap amunt
+        float timeToApex = maxJumpTime / 2;
+        gravity = (-2 * maxJumpHeight) / Mathf.Pow(timeToApex, 2);
+        initialJumpVelocity = (2 * maxJumpHeight) / timeToApex;
+    }
 
-    void onRun (InputAction.CallbackContext context)
+    void OnMovementInput(InputAction.CallbackContext context)
+    {
+        currentMovementInput = context.ReadValue<Vector2>();
+        currentMovement.x = currentMovementInput.x;
+        currentMovement.z = currentMovementInput.y;
+        currentRunMovement.x = currentMovementInput.x * runMultiplier;
+        currentRunMovement.z = currentMovementInput.y * runMultiplier;
+        isMovementPressed = currentMovementInput.x != 0 || currentMovementInput.y != 0;
+    }
+
+    void OnJump(InputAction.CallbackContext context)
+    {
+        isJumpPressed = context.ReadValueAsButton();
+    }
+
+    void OnRun(InputAction.CallbackContext context)
     {
         isRunPressed = context.ReadValueAsButton();
     }
 
-    void handleRotation()
-    {
-        Vector3 positionToLookAt;
-        // the change in position our character should point to
-        positionToLookAt.x = currentMovement.x;
-        positionToLookAt.y = zero;
-        positionToLookAt.z = currentMovement.z;
-        // the current rotation of our character
-        Quaternion currentRotation = transform.rotation;
-
-        if (isMovementPressed) {
-            // creates a new rotation based on where the player is currently pressing
-            Quaternion targetRotation = Quaternion.LookRotation(positionToLookAt);
-            // rotate the character to face the positionToLookAt            
-            transform.rotation = Quaternion.Slerp(currentRotation, targetRotation, rotationFactorPerFrame * Time.deltaTime);
-        }
-    }
-
-    // handler function to set the player input values
-    void onMovementInput (InputAction.CallbackContext context)
-    {
-            currentMovementInput = context.ReadValue<Vector2>();
-            currentMovement.x = currentMovementInput.x;
-            currentMovement.z = currentMovementInput.y;
-            currentRunMovement.x = currentMovementInput.x * runMultiplier;
-            currentRunMovement.z = currentMovementInput.y * runMultiplier;
-            isMovementPressed = currentMovementInput.x != zero || currentMovementInput.y != zero;
-    }
-    
-    void handleAnimation()
-    {
-        // get parameter values from animator
-        bool isWalking = animator.GetBool(isWalkingHash);
-        bool isRunning = animator.GetBool(isRunningHash);
-
-        // start walking if movement pressed is true and not already walking
-        if (isMovementPressed && !isWalking) {
-            animator.SetBool(isWalkingHash, true);
-        }
-        // stop walking if isMovementPressed is false and not already walking
-        else if (!isMovementPressed && isWalking) {
-            animator.SetBool(isWalkingHash, false);
-        }
-        // run if movement and run pressed are true and not currently running
-        if ((isMovementPressed && isRunPressed) && !isRunning)
-        {
-            animator.SetBool(isRunningHash, true);
-        }
-        // stop running if movement or run pressed are false and currently running
-        else if ((!isMovementPressed || !isRunPressed) && isRunning) {
-            animator.SetBool(isRunningHash, false);
-        }
-    }
-
-    void handleGravity()
-    {
-        bool isFalling = currentMovement.y <= 0.0f;
-        float fallMultiplier = 4.0f;
-        // apply proper gravity if the player is grounded or not
-        if (characterController.isGrounded) {
-            currentMovement.y = groundedGravity;
-            appliedMovement.y = groundedGravity;
-
-            // additional gravity applied after reaching apex of jump
-        } else if (isFalling) {
-            float previousYVelocity = currentMovement.y;
-            currentMovement.y = currentMovement.y + (gravity * fallMultiplier * Time.deltaTime);
-            appliedMovement.y = Mathf.Max((previousYVelocity + currentMovement.y) * .5f, -20.0f);
-            
-            // applied when character is not grounded
-        } else {
-            float previousYVelocity = currentMovement.y;
-            currentMovement.y = currentMovement.y + (gravity * Time.deltaTime);
-            appliedMovement.y = (previousYVelocity + currentMovement.y) * .5f;
-        }
-
-
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        handleRotation();
-        handleAnimation();
-
-        if (isRunPressed) {
-            appliedMovement.x=currentRunMovement.x;
-            appliedMovement.z=currentRunMovement.z;
-        } else {
-            appliedMovement.x=currentMovement.x;
-            appliedMovement.z=currentMovement.z;
-        }
-
-        characterController.Move(appliedMovement * Time.deltaTime);
-
-        handleGravity();
-    }
-    
     void OnEnable()
     {
-        // enable the character controls action map
         playerInput.CharacterControl.Enable();
     }
 
     void OnDisable()
     {
-        // disable the character controls action map
         playerInput.CharacterControl.Disable();
+    }
+
+    void Update()
+    {
+        HandleMovement();
+        HandleRotation();
+        HandleGravity();
+        HandleJump();
+        HandleAnimation();
+    }
+
+    void HandleMovement()
+    {
+        // Gestiona el moviment del personatge i aplica els canvis a la posició si camina o corre
+        appliedMovement.x = isRunPressed ? currentRunMovement.x : currentMovement.x;
+        appliedMovement.z = isRunPressed ? currentRunMovement.z : currentMovement.z;
+        characterController.Move(appliedMovement * Time.deltaTime);
+    }
+
+    void HandleRotation()
+    {
+        // Gestiona la rotació del personatge en base a la direcció del moviment
+        if (currentMovementInput != Vector2.zero)
+        {
+            positionToLookAt.Set(currentMovement.x, 0, currentMovement.z);
+            Quaternion targetRotation = Quaternion.LookRotation(positionToLookAt);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationFactorPerFrame * Time.deltaTime);
+        }
+    }
+
+    void HandleGravity()
+    {
+        bool isFalling = currentMovement.y <= 0.0f || !isJumpPressed;
+        float fallMultiplier = 2.0f;
+        // fall Multiplier indica multiplicador gravetat en caiguda quan arriba al punt màxim del salt
+
+        // Aplica la gravetat adequada si el jugador està a terra o no
+        if (characterController.isGrounded)
+        {
+            if (isJumpAnimating)
+            {
+                isJumpAnimating = false;
+            }
+            currentMovement.y = groundedGravity;
+            appliedMovement.y = groundedGravity;
+        }
+        else if (isFalling)
+        {
+            float previousYVelocity = currentMovement.y;
+            currentMovement.y = currentMovement.y + (gravity * fallMultiplier * Time.deltaTime);
+            appliedMovement.y = Mathf.Max((previousYVelocity + currentMovement.y) * 0.5f, -20.0f);
+        }
+        else
+        {
+            float previousYVelocity = currentMovement.y;
+            currentMovement.y = currentMovement.y + (gravity * Time.deltaTime);
+            appliedMovement.y = (previousYVelocity + currentMovement.y) * 0.5f;
+        }
+    }
+
+    void HandleJump()
+    {
+        if (!isJumping && characterController.isGrounded && isJumpPressed)
+        {
+            isJumpAnimating = true;
+            isJumping = true;
+            currentMovement.y = initialJumpVelocity;
+            appliedMovement.y = initialJumpVelocity;
+        }
+        else if (!isJumpPressed && isJumping && characterController.isGrounded)
+        {
+            isJumping = false;
+        }
+    }
+
+    private void HandleAnimation()
+    {
+        // Gestiona l'animació del personatge en base al moviment
+        var newAnimationState = AnimationState.Idle;
+
+        if (isJumping)
+        {
+            newAnimationState = AnimationState.Jump;
+        }
+        else if (isMovementPressed)
+        {
+            newAnimationState = isRunPressed ? AnimationState.Run : AnimationState.Walk;
+        }
+
+        if (newAnimationState != currentAnimationState)
+        {
+            SetAnimationState(newAnimationState);
+        }
+    }
+
+    private void SetAnimationState(AnimationState newState)
+    {
+        // Canvia l'estat de l'animació del personatge 
+        animator.SetBool(currentAnimationState.ToString(), false);
+        currentAnimationState = newState;
+        animator.SetBool(currentAnimationState.ToString(), true);
     }
 }
