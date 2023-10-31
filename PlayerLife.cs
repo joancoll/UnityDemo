@@ -8,12 +8,14 @@ public class PlayerLife : MonoBehaviour
     [SerializeField] AudioSource deathSound;
     Animator animator;
 
-    // variables to store optimized setter/getter parameter IDs
-    int isWalkingHash;
-    int isRunningHash;
-    int isJumpingHash;
-    int isDeathHash;
-    
+    private enum AnimationState
+    { // Han de coincidir amb els noms dels booleans que controlen les animacions de l'animator
+        Idle,
+        Walk,
+        Run,
+        Jump,
+        Dead
+    }
 
 
     bool dead = false;
@@ -46,18 +48,20 @@ public class PlayerLife : MonoBehaviour
 
     void Die()
     {   animator = GetComponent<Animator>();
-        // set the parameter hash references
-        isWalkingHash = Animator.StringToHash("isWalking");
-        isRunningHash = Animator.StringToHash("isRunning");
-        isJumpingHash = Animator.StringToHash("isJumping");
-        isDeathHash = Animator.StringToHash("isDeath");
-        animator.SetBool(isWalkingHash, false);
-        animator.SetBool(isRunningHash, false);
-        animator.SetBool(isJumpingHash, false);
-        animator.SetBool(isDeathHash, true);
+        SetAnimationStateToDeath();
         Invoke(nameof(ReloadLevel), 2.0f);
         dead = true;
         deathSound.Play();
+    }
+
+    private void SetAnimationStateToDeath()
+    {
+        // Canvia l'estat de l'animació a mort del personatge
+        animator.SetBool(AnimationState.Jump.ToString(), false);
+        animator.SetBool(AnimationState.Walk.ToString(), false);
+        animator.SetBool(AnimationState.Run.ToString(), false);
+        animator.SetBool(AnimationState.Idle.ToString(), false);
+        animator.SetBool(AnimationState.Dead.ToString(), true); 
     }
 
     void ReloadLevel()
