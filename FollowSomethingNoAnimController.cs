@@ -6,7 +6,7 @@ public class FollowSomethingController : MonoBehaviour
     // Start is called before the first frame update
     
     public CharacterController followTo;
-    private Animator animator;
+
 
 
     private NavMeshAgent pathfinder;
@@ -15,7 +15,6 @@ public class FollowSomethingController : MonoBehaviour
     void Awake() 
     {
         // initially set reference variables
-        animator = GetComponent<Animator>();
         pathfinder = GetComponent<NavMeshAgent>();
     }
     
