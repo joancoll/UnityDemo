@@ -6,9 +6,6 @@ public class FollowSomethingController : MonoBehaviour
     // Start is called before the first frame update
     
     public CharacterController followTo;
-
-
-
     private NavMeshAgent pathfinder;
     private Transform target;
 
